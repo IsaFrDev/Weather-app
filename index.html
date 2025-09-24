@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Simple Weather App — Open-Meteo (no API key)</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #0b1220;
+            --accent: #06b6d4;
+            --muted: #94a3b8;
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, "Helvetica Neue", Arial
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(1200px 600px at 10% 10%, rgba(6, 182, 212, 0.08), transparent 10%),
+                radial-gradient(800px 400px at 90% 90%, rgba(99, 102, 241, 0.06), transparent 10%),
+                var(--bg);
+            padding: 32px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 720px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            color: #e6eef8;
+        }
+
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            letter-spacing: 0.2px
+        }
+
+        p.lead {
+            margin: 0 0 18px 0;
+            color: var(--muted);
+            font-size: 13px
+        }
+
+        .search {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.01);
+            color: inherit;
+            outline: none;
+            font-size: 15px;
+        }
+
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 0;
+            cursor: pointer;
+            background: linear-gradient(90deg, var(--accent), #7c3aed55);
+            color: #041025;
+            font-weight: 600;
+            min-width: 110px;
+        }
+
+        .result {
+            margin-top: 12px;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+
+        .icon {
+            width: 92px;
+            height: 92px;
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            box-shadow: inset 0 -6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .meta {
+            flex: 1
+        }
+
+        .meta h2 {
+            margin: 0;
+            font-size: 18px
+        }
+
+        .meta .temp {
+            font-size: 32px;
+            margin: 6px 0;
+            font-weight: 700
+        }
+
+        .meta .small {
+            color: var(--muted);
+            font-size: 13px
+        }
+
+        .extras {
+            margin-top: 12px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+            color: var(--muted);
+            border: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        .note {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 13px
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(255, 255, 255, 0.08);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        footer {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 12px;
+            text-align: right
+        }
+
+        @media(max-width:520px) {
+            .result {
+                flex-direction: column;
+                align-items: flex-start
+            }
+
+            .icon {
+                width: 76px;
+                height: 76px
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card" role="main">
+        <h1>Weather App (Open-Meteo)</h1>
+        <p class="lead">Type a city (e.g., Tashkent, London) and press Search. Uses Open-Meteo geocoding + current
+            weather (no API key).</p>
+
+        <div class="search" aria-hidden="false">
+            <input id="cityInput" type="text" placeholder="Enter city name, e.g. Tashkent" value="Tashkent" />
+            <button id="searchBtn">Search</button>
+        </div>
+
+        <div id="outputArea">
+            <div class="note">No data yet. Search a city to see current temperature and conditions.</div>
+        </div>
+
+        <footer>Data from Open-Meteo • No API key required</footer>
+    </div>
+
+    <script>
+        // Small mapping of Open-Meteo weathercode -> emoji + description
+        const weatherCodes = {
+            0: ["☀️", "Clear sky"],
+            1: ["🌤️", "Mainly clear"],
+            2: ["⛅", "Partly cloudy"],
+            3: ["☁️", "Overcast"],
+            45: ["🌫️", "Fog"],
+            48: ["🌫️", "Depositing rime fog"],
+            51: ["🌦️", "Drizzle: light"],
+            53: ["🌦️", "Drizzle: moderate"],
+            55: ["🌧️", "Drizzle: dense"],
+            56: ["🌧️", "Freezing drizzle: light"],
+            57: ["🌧️", "Freezing drizzle: dense"],
+            61: ["🌧️", "Rain: slight"],
+            63: ["🌧️", "Rain: moderate"],
+            65: ["🌧️", "Rain: heavy"],
+            66: ["🌧️", "Freezing rain: light"],
+            67: ["🌧️", "Freezing rain: heavy"],
+            71: ["🌨️", "Snow fall: slight"],
+            73: ["🌨️", "Snow fall: moderate"],
+            75: ["🌨️", "Snow fall: heavy"],
+            77: ["🌨️", "Snow grains"],
+            80: ["🌧️", "Rain showers: slight"],
+            81: ["🌧️", "Rain showers: moderate"],
+            82: ["🌧️", "Rain showers: violent"],
+            85: ["🌨️", "Snow showers slight"],
+            86: ["🌨️", "Snow showers heavy"],
+            95: ["⛈️", "Thunderstorm: slight or moderate"],
+            96: ["⛈️", "Thunderstorm with slight hail"],
+            99: ["⛈️", "Thunderstorm with heavy hail"]
+        };
+
+        const searchBtn = document.getElementById('searchBtn');
+        const cityInput = document.getElementById('cityInput');
+        const outputArea = document.getElementById('outputArea');
+
+        function setLoading(loading = true) {
+            if (loading) {
+                outputArea.innerHTML = '<div class="note"><span class="spinner"></span> Loading…</div>';
+            }
+        }
+
+        async function fetchGeocode(city) {
+            const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Geocoding request failed');
+            const data = await res.json();
+            if (!data.results || data.results.length === 0) return null;
+            return data.results[0]; // {name, latitude, longitude, country, timezone, ...}
+        }
+
+        async function fetchCurrentWeather(lat, lon) {
+            // current_weather=true returns temperature, windspeed, winddirection, weathercode
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Weather request failed');
+            const data = await res.json();
+            return data.current_weather; // {temperature, windspeed, winddirection, weathercode, time}
+        }
+
+        function renderResult(place, weather) {
+            const code = weather.weathercode;
+            const map = weatherCodes[code] || ["🌈", "Unknown"];
+            outputArea.innerHTML = `
+        <div class="result" role="region" aria-live="polite">
+            <div class="icon" title="${map[1]}">${map[0]}</div>
+            <div class="meta">
+            <h2>${place.name}${place.country ? ', ' + place.country : ''}</h2>
+            <div class="temp">${weather.temperature}°C</div>
+            <div class="small">${map[1]} • ${new Date(weather.time).toLocaleString()}</div>
+            <div class="extras">
+                <div class="chip">Wind: ${weather.windspeed} km/h</div>
+                <div class="chip">Wind dir: ${Math.round(weather.winddirection)}°</div>
+                <div class="chip">Lat: ${Number(place.latitude).toFixed(3)}</div>
+                <div class="chip">Lon: ${Number(place.longitude).toFixed(3)}</div>
+            </div>
+            </div>
+        </div>
+        `;
+        }
+
+        async function handleSearch() {
+            const city = cityInput.value.trim();
+            if (!city) {
+                outputArea.innerHTML = '<div class="note">Please enter a city name.</div>';
+                return;
+            }
+            try {
+                setLoading(true);
+                const place = await fetchGeocode(city);
+                if (!place) {
+                    outputArea.innerHTML = `<div class="note">City not found. Try another name.</div>`;
+                    return;
+                }
+                const weather = await fetchCurrentWeather(place.latitude, place.longitude);
+                if (!weather) {
+                    outputArea.innerHTML = `<div class="note">Weather data unavailable for ${place.name}.</div>`;
+                    return;
+                }
+                renderResult(place, weather);
+            } catch (err) {
+                console.error(err);
+                outputArea.innerHTML = `<div class="note">Error: ${err.message}</div>`;
+            }
+        }
+
+        // Enter key support
+        cityInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSearch(); });
+        searchBtn.addEventListener('click', handleSearch);
+
+        // Optional: auto-run for default value
+        handleSearch();
+    </script>
+</body>
+
+</html>
